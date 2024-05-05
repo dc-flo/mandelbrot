@@ -8,9 +8,10 @@ use sdl2::rect::Point;
 
 use crate::compute::mandelbrot;
 
-const RESOLUTION: u32 = 300;
+const RESOLUTION: u32 = 200;
 const SCREEN_WIDTH: u32 = 3 * RESOLUTION;
 const SCREEN_HEIGHT: u32 = 2 * RESOLUTION;
+const MAX_IT: u32 = 1000;
 
 
 pub(crate) fn main() -> Result<(), String> {
@@ -62,23 +63,51 @@ pub(crate) fn main() -> Result<(), String> {
                         canvas.present()
                     } else if keycode == Keycode::Space {
                         let timer = Instant::now();
-                        for i in 1..SCREEN_WIDTH {
-                            for j in 1..SCREEN_HEIGHT {
-                                let i = i as f32;
-                                let j = j as f32;
+                        for _i in 1..SCREEN_WIDTH {
+                            for _j in 1..SCREEN_HEIGHT {
+                                let i = _i as f32;
+                                let j = _j as f32;
                                 let x0:f32 = i/(RESOLUTION as f32) - 2.0;
                                 let y0:f32 = j/(RESOLUTION as f32) - 1.0;
                                 let mut x:f32 = 0.0;
                                 let mut y:f32 = 0.0;
-                                for it in 1..1000 {
-                                    if (x.powf(2.0) + y.powf(2.0)) > 2.0_f32.powf(2.0) {
-                                        canvas.set_draw_color(pixels::Color::RGB(0, (it/1000 * 255) as u8, 0));
-                                        let _ = canvas.draw_point(Point::new(i as i32, j as i32));
-                                        break;
-                                    }
-                                    let xtemp = x.powf(2.0) - y.powf(2.0) + x0;
+                                let mut x2:f32 = 0.0;
+                                let mut y2:f32 = 0.0;
+                                let mut it = 0;
+
+                                //check if in main bulbs
+                                let q = (x0 - (1.0/4.0)).powf(2.0) + y0.powf(2.0);
+                                if q*(q + (x + (1.0/4.0))) < (1.0/4.0)*y0.powf(2.0) {
+                                    canvas.set_draw_color(pixels::Color::RGB(255, 0, 0));
+                                    let _ = canvas.draw_point(Point::new(_i as i32, _j as i32));
+                                    continue
+                                }
+
+                                //escape time algorithm
+                                while x.powf(2.0) + y.powf(2.0) <= 4.0 && it < MAX_IT {
                                     y = 2.0*x*y + y0;
-                                    x = xtemp;
+                                    x = x2 - y2 + x0;
+                                    x2 = x*x;
+                                    y2 = y*y;
+                                    it = it + 1;
+                                }
+                                let it = it as f32;
+                                canvas.set_draw_color(pixels::Color::RGB((it/1000.0 * 255.0) as u8, 0,0));
+                                let _ = canvas.draw_point(Point::new(i as i32, j as i32));
+                            }
+                        }
+                        canvas.present();
+                        println!("took {}", timer.elapsed().as_nanos())
+                    } else if keycode == Keycode::H {
+                        let timer = Instant::now();
+                        canvas.set_draw_color(pixels::Color::RGB(255, 0, 0));
+                        for _i in 1..SCREEN_WIDTH {
+                            for _j in 1..SCREEN_HEIGHT {
+                                let x = (_i as f32)/(RESOLUTION as f32)*2.0 - 2.0;
+                                let y = (_j as f32)/(RESOLUTION as f32)*2.0 - 2.0;
+                                println!("{}: {}", x, y);
+                                if x.powf(2.0) + (y - x.powf(2.0 * (1.0/3.0))).powf(2.0) == 1.0 {
+                                    let _ = canvas.draw_point(Point::new(_i as i32, _j as i32));
                                 }
                             }
                         }
@@ -86,6 +115,8 @@ pub(crate) fn main() -> Result<(), String> {
                         println!("took {}", timer.elapsed().as_nanos())
                     }
                 }
+
+
 
                 Event::MouseButtonDown { x, y, .. } => {
                     let _ = canvas.draw_line(Point::new(lastx, lasty), Point::new(x, y));
