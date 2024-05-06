@@ -8,3 +8,8 @@ edition = "2021"
 [dependencies]
 ocl = "0.19.7"
 sdl2 = { version = "0.36.0" }
+
+[profile.mandel]
+inherits = "release"
+overflow-checks = true
+opt-level = 1

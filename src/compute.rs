@@ -1,7 +1,7 @@
 extern crate ocl;
 
-use ocl::builders::BufferBuilder;
-use ocl::{MemFlags, ProQue};
+use std::mem::size_of_val;
+use ocl::{Buffer, ProQue};
 
 pub(crate) fn trivial() -> ocl::Result<()> {
     let src = r#"
@@ -21,6 +21,13 @@ pub(crate) fn trivial() -> ocl::Result<()> {
         .arg(&buffer)
         .arg(10.0f32)
         .build()?;
+
+    unsafe { kernel.enq()?; }
+
+    let mut vec = vec![0.0f32; buffer.len()];
+    buffer.read(&mut vec).enq()?;
+
+    println!("The value at index [{}] is now '{}'!", 200007, vec[200007]);
 
     unsafe { kernel.enq()?; }
 
@@ -52,42 +59,44 @@ pub(crate) fn mandelbrot(vec: &mut Vec<f32>, res: u32, iter: i32) -> ocl::Result
         }
     "#;
 
-
     let pro_que = ProQue::builder()
         .src(src)
-        .dims(1 << 20)
         .build()?;
 
     let mut vecX:Vec<f32> = Vec::new();
     let mut vecY:Vec<f32> = Vec::new();
 
-    for i in 1..3 * res {
-        for j in 1..2 * res {
+    for i in 0..3 * res {
+        for j in 0..2 * res {
             vecX.push((i as f32)/(res as f32) - 2.0);
             vecY.push((j as f32)/(res as f32) - 1.0);
         }
     }
-    println!("{}", vecX.len());
-    let bufferX = BufferBuilder::new()
+    let bufferX = Buffer::<f32>::builder()
         .queue(pro_que.queue().clone())
-        .flags(MemFlags::new().read_write())
+        .flags(ocl::flags::MEM_READ_WRITE)
         .len(vecX.len())
         .copy_host_slice(&vecX)
         .build()?;
-    println!("{}", bufferX.len());
-    let bufferY = BufferBuilder::new()
+    
+    let bufferY = Buffer::<f32>::builder()
         .queue(pro_que.queue().clone())
-        .flags(MemFlags::new().read_write())
+        .flags(ocl::flags::MEM_READ_WRITE)
         .len(vecY.len())
         .copy_host_slice(&vecY)
         .build()?;
 
 
-    let kernel = pro_que.kernel_builder("mandelbrot")
+    let mut kernel = pro_que.kernel_builder("mandelbrot")
         .arg(&bufferX)
         .arg(&bufferY)
         .arg(iter)
+        .global_work_size(5)
+        .local_work_size(5)
         .build()?;
+
+    println!("{}", vecX.len());
+    println!("{}", vec.len());
 
     unsafe { kernel.enq()?; }
 
