@@ -1,6 +1,7 @@
 extern crate ocl;
 
 use std::mem::size_of_val;
+use std::time::Instant;
 use ocl::{Buffer, ProQue};
 
 pub(crate) fn trivial() -> ocl::Result<()> {
@@ -38,24 +39,33 @@ pub(crate) fn trivial() -> ocl::Result<()> {
     Ok(())
 }
 
-pub(crate) fn mandelbrot(vec: &mut Vec<f32>, res: u32, iter: i32) -> ocl::Result<()> {
+pub(crate) unsafe fn mandelbrot(vec: &mut Vec<i32>, res: u32, iter: i32) -> ocl::Result<()> {
     let src = r#"
-        __kernel void mandelbrot(__global float* X, __global float* Y, int iter) {
+        __kernel void mandelbrot(__global float* X, __global float* Y, __global int* RET, int iter) {
             int id = get_global_id(0);
             float x0 = X[id];
             float y0 = Y[id];
             float x = 0;
             float y = 0;
-            for (int i = 0; i < iter; i++) {
-                if (pow(x, 2) + pow(y, 2) > 4) {
-                    X[id] = i;
-                    return;
-                }
-                int xtemp = pow(x, 2) - pow(y, 2) + x0;
-                y = 2*x*y + y0;
-                x = xtemp;
+            float x2 = 0;
+            float y2 = 0;
+            int it = 0;
+
+            float q = pow((x0 - (1/4)), 2) + pow(y0, 2);
+            if (q*(q + (x + (1/4))) < (1/4) * pow(y0, 2)) {
+                RET[id] = iter;
+                return;
             }
-            X[id] = iter;
+
+            while (pow(x, 2) + pow(y, 2) <= 4 && it < iter) {
+                y = 2*x*y + y0;
+                x = x2 - y2 + x0;
+                x2 = x*x;
+                y2 = y*y;
+                it = it + 1;
+            }
+
+            RET[id] = it;
         }
     "#;
 
@@ -63,43 +73,51 @@ pub(crate) fn mandelbrot(vec: &mut Vec<f32>, res: u32, iter: i32) -> ocl::Result
         .src(src)
         .build()?;
 
-    let mut vecX:Vec<f32> = Vec::new();
-    let mut vecY:Vec<f32> = Vec::new();
+    let mut vec_x:Vec<f32> = Vec::new();
+    let mut vec_y:Vec<f32> = Vec::new();
 
     for i in 0..3 * res {
         for j in 0..2 * res {
-            vecX.push((i as f32)/(res as f32) - 2.0);
-            vecY.push((j as f32)/(res as f32) - 1.0);
+            vec_x.push((i as f32)/(res as f32) - 2.0);
+            vec_y.push((j as f32)/(res as f32) - 1.0);
         }
     }
-    let bufferX = Buffer::<f32>::builder()
+    let buffer_x = Buffer::<f32>::builder()
         .queue(pro_que.queue().clone())
         .flags(ocl::flags::MEM_READ_WRITE)
-        .len(vecX.len())
-        .copy_host_slice(&vecX)
+        .len(vec_x.len())
+        .copy_host_slice(&vec_x)
         .build()?;
     
-    let bufferY = Buffer::<f32>::builder()
+    let buffer_y = Buffer::<f32>::builder()
         .queue(pro_que.queue().clone())
         .flags(ocl::flags::MEM_READ_WRITE)
-        .len(vecY.len())
-        .copy_host_slice(&vecY)
+        .len(vec_y.len())
+        .copy_host_slice(&vec_y)
         .build()?;
 
+    let buffer_ret = Buffer::<i32>::builder()
+        .queue(pro_que.queue().clone())
+        .flags(ocl::flags::MEM_READ_WRITE)
+        .len(vec.len())
+        .use_host_slice(vec)
+        .build()?;
 
     let mut kernel = pro_que.kernel_builder("mandelbrot")
-        .arg(&bufferX)
-        .arg(&bufferY)
+        .arg(&buffer_x)
+        .arg(&buffer_y)
+        .arg(&buffer_ret)
         .arg(iter)
-        .global_work_size(5)
-        .local_work_size(5)
+        .global_work_size(vec.len())
         .build()?;
 
-    println!("{}", vecX.len());
+    println!("{}", vec_x.len());
     println!("{}", vec.len());
 
-    unsafe { kernel.enq()?; }
+    let timer = Instant::now();
+    kernel.enq()?;
 
-    bufferX.read(vec).enq()?;
+    buffer_ret.read(vec).enq()?;
+    println!("calq took {}", timer.elapsed().as_nanos());
     Ok(())
 }
