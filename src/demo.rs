@@ -55,7 +55,7 @@ pub(crate) fn main(res: u32, max_it: i32) -> Result<(), String> {
                         println!("{ret:?}");
                         for i in 0..screen_width {
                             for j in 0..screen_height {
-                                canvas.set_draw_color(pixels::Color::RGB(((vec.get((i * screen_height + j) as usize).unwrap().to_owned() as f32)/(max_it as f32) * 255.0) as u8, 0, 0));
+                                canvas.set_draw_color(pixels::Color::RGB(0, 0, ((vec.get((i * screen_height + j) as usize).unwrap().to_owned() as f32)/(max_it as f32) * 255.0) as u8));
                                 let _ = canvas.draw_point(Point::new(i as i32, j as i32));
                             }
                         }
@@ -91,7 +91,7 @@ pub(crate) fn main(res: u32, max_it: i32) -> Result<(), String> {
                                 //check if in main bulbs
                                 let q = (x0 - (1.0/4.0)).powf(2.0) + y0.powf(2.0);
                                 if q*(q + (x + (1.0/4.0))) < (1.0/4.0)*y0.powf(2.0) {
-                                    canvas.set_draw_color(pixels::Color::RGB(255, 0, 0));
+                                    canvas.set_draw_color(pixels::Color::RGB(0, 255, 0));
                                     let _ = canvas.draw_point(Point::new(_i as i32, _j as i32));
                                     continue
                                 }
@@ -105,7 +105,7 @@ pub(crate) fn main(res: u32, max_it: i32) -> Result<(), String> {
                                     it = it + 1;
                                 }
                                 let it = it as f32;
-                                canvas.set_draw_color(pixels::Color::RGB((it/(max_it as f32) * 255.0) as u8, 0,0));
+                                canvas.set_draw_color(pixels::Color::RGB(0, (it/(max_it as f32) * 255.0) as u8, 0));
                                 let _ = canvas.draw_point(Point::new(i as i32, j as i32));
                             }
                         }
